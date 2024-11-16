@@ -10,7 +10,7 @@ def get_conn(filepath):
 
     cursor = conn.cursor()
     cursor.execute(
-        f"""CREATE TABLE IF NOT EXISTS tasks
+        """CREATE TABLE IF NOT EXISTS tasks
                       (id INTEGER PRIMARY KEY AUTOINCREMENT,
                        task TEXT NOT NULL,
                        completed BOOLEAN NOT NULL)"""
@@ -29,6 +29,12 @@ def get_all_tasks(conn):
 def save_task(conn, task):
     cursor = conn.cursor()
     cursor.execute("INSERT INTO tasks (task, completed) VALUES (?, ?)", (task, False))
+    conn.commit()
+
+
+def delete_task(conn, task_text):
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM tasks WHERE task = ?", (task_text,))
     conn.commit()
 
 
