@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from PyQt6.QtWidgets import (
+    QDialog,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -165,88 +166,97 @@ class TaskListWidget(QListWidget):
                 break
 
 
-class MainWindow(QWidget):
-    """
-    Main application window integrates task management, UI components, and user interaction.
-    """
+class TaskDetailsWindow(QDialog):
+    def __init__(self, task, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Details for: {task.title}")
 
+        self.layout = QVBoxLayout()
+
+        # Display the task details
+        self.task_title_label = QLabel(f"Title: {task.title}")
+        self.deadline_label = QLabel(
+            f"Deadline: {task.deadline if task.deadline else 'Not Set'}"
+        )
+        self.location_label = QLabel(
+            f"Location: {task.location if task.location else 'Not Set'}"
+        )
+        self.url_label = QLabel(f"URL: {task.url if task.url else 'Not Set'}")
+
+        self.layout.addWidget(self.task_title_label)
+        self.layout.addWidget(self.deadline_label)
+        self.layout.addWidget(self.location_label)
+        self.layout.addWidget(self.url_label)
+
+        # Close button
+        self.close_button = QPushButton("Close")
+        self.close_button.clicked.connect(self.accept)
+        self.layout.addWidget(self.close_button)
+
+        self.setLayout(self.layout)
+
+
+class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Your To-Do List")
-        self.setGeometry(300, 300, 400, 500)
+        self.setGeometry(300, 300, 300, 400)
 
+        # Initialize TaskManager
         self._task_manager = TaskManager("data/tasks.db")
-        self._init_ui()
-        self._load_tasks()
 
-    def _init_ui(self):
+        # Load tasks from the database
+        self.tasks = self._task_manager.load_tasks()
+
         self.layout = QVBoxLayout()
 
-        # Input fields for new tasks
         self.input_field = QLineEdit()
-        self.input_field.setPlaceholderText("Task title")
-
-        self.deadline_field = QLineEdit()
-        self.deadline_field.setPlaceholderText("Deadline (YYYY-MM-DD HH:MM)")
-
-        self.location_field = QLineEdit()
-        self.location_field.setPlaceholderText("Location")
-
-        self.url_field = QLineEdit()
-        self.url_field.setPlaceholderText("URL")
+        self.input_field.setPlaceholderText("Your new task")
 
         self.add_button = QPushButton("Add Task")
         self.add_button.clicked.connect(self._add_task)
 
-        self.task_list = TaskListWidget()
+        self.task_list = QListWidget()
+        self.task_list.itemClicked.connect(self._show_task_details)
 
-        # Add input fields to the layout
-        for widget in [
-            self.input_field,
-            self.deadline_field,
-            self.location_field,
-            self.url_field,
-            self.add_button,
-            self.task_list,
-        ]:
+        # Add widgets to the layout
+        widgets = [self.input_field, self.add_button, self.task_list]
+        for widget in widgets:
             self.layout.addWidget(widget)
 
         self.setLayout(self.layout)
+        self._load_tasks()
 
     def _load_tasks(self):
-        tasks = self._task_manager.load_tasks()
-        for task in tasks:
-            self.task_list.add_task(task, self._delete_task)
+        self.task_list.clear()  # Clear the existing items before loading the tasks
+        for task in self.tasks:
+            item = QListWidgetItem(task.title)  # Only show title in the list
+            self.task_list.addItem(item)
 
     def _add_task(self):
-        title = self.input_field.text().strip()
-        deadline_text = self.deadline_field.text().strip()
-        location = self.location_field.text().strip()
-        url = self.url_field.text().strip()
-
-        if title:
-            # Optional: Only parse deadline if it's provided
-            deadline = None
-            if deadline_text:
-                try:
-                    deadline = datetime.strptime(deadline_text, "%Y-%m-%d %H:%M")
-                except ValueError:
-                    print("Invalid deadline format")
-                    return
-
-            new_task = Task(title, deadline, location, url)
+        task_title = self.input_field.text()
+        if task_title:
+            new_task = Task(task_title)
             self._task_manager.save_task(new_task)
-            self.task_list.add_task(new_task, self._delete_task)
-
-            # Clear input fields
+            self.tasks.append(new_task)
+            self._load_tasks()
             self.input_field.clear()
-            self.deadline_field.clear()
-            self.location_field.clear()
-            self.url_field.clear()
 
-    def _delete_task(self, task: Task):
-        self._task_manager.delete_task(task)
-        self.task_list.remove_task(task)
+    def _show_task_details(self, item):
+        task_name = item.text()  # Get the clicked task's title
+        task = self._get_task_by_title(
+            task_name
+        )  # Fetch full task details from the list
+        if task:
+            # Open a new window to show task details
+            self._open_task_details_window(task)
 
-    def closeEvent(self, event):
-        self._task_manager.close()
+    def _get_task_by_title(self, title):
+        for task in self.tasks:
+            if task.title == title:
+                return task
+        return None
+
+    def _open_task_details_window(self, task):
+        details_window = TaskDetailsWindow(task)
+        details_window.exec()
